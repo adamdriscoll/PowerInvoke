@@ -116,12 +116,98 @@ public class GeneratedWrapperTests
         Assert.False(pipelineParameter.AcceptsPropertyName);
     }
 
+    [Fact]
+    public void Generated_wrapper_allows_valid_parameter_set_combinations()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new MultiTargetWidgetCommands(runspace: runspace);
+
+        var byName = Assert.IsType<ParameterSetResult>(Assert.Single(command.Get(name: "alpha")));
+        var byId = Assert.IsType<ParameterSetResult>(Assert.Single(command.Get(id: 42)));
+
+        Assert.Equal("ByName", byName.ParameterSetName);
+        Assert.Equal("alpha", byName.Name);
+        Assert.Null(byName.Id);
+
+        Assert.Equal("ById", byId.ParameterSetName);
+        Assert.Null(byId.Name);
+        Assert.Equal(42, byId.Id);
+    }
+
+    [Fact]
+    public void Generated_wrapper_surfaces_invalid_parameter_set_combinations()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new MultiTargetWidgetCommands(runspace: runspace);
+        var exception = Assert.Throws<ParameterBindingException>(() => command.Get(name: "alpha", id: 42));
+
+        Assert.Contains("Parameter set", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Generated_new_wrapper_feels_like_creating_a_record()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new NewWidgetLifecycleCommands(runspace: runspace);
+        var result = command.New(name: "alpha", count: 3, passThru: SwitchParameter.Present);
+
+        var item = Assert.IsType<WidgetLifecycleResult>(Assert.Single(result));
+        Assert.Equal("New", item.Operation);
+        Assert.Equal("alpha", item.Name);
+        Assert.Equal(3, item.Count);
+        Assert.True(item.FlagWasBound);
+        Assert.Equal("Create", item.ParameterSetName);
+    }
+
+    [Fact]
+    public void Generated_set_wrapper_supports_multiple_parameter_sets()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new SetWidgetLifecycleCommands(runspace: runspace);
+        var byName = Assert.IsType<WidgetLifecycleResult>(Assert.Single(command.Set(name: "alpha", count: 4)));
+        var byId = Assert.IsType<WidgetLifecycleResult>(Assert.Single(command.Set(id: 9, count: 5)));
+
+        Assert.Equal("Set", byName.Operation);
+        Assert.Equal("UpdateByName", byName.ParameterSetName);
+        Assert.Equal("alpha", byName.Name);
+        Assert.Null(byName.Id);
+        Assert.False(byName.FlagWasBound);
+
+        Assert.Equal("Set", byId.Operation);
+        Assert.Equal("UpdateById", byId.ParameterSetName);
+        Assert.Equal(9, byId.Id);
+        Assert.Null(byId.Name);
+    }
+
+    [Fact]
+    public void Generated_remove_wrapper_supports_switch_parameters()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new RemoveWidgetLifecycleCommands(runspace: runspace);
+        var result = command.Remove(name: "alpha", force: SwitchParameter.Present);
+
+        var item = Assert.IsType<WidgetLifecycleResult>(Assert.Single(result));
+        Assert.Equal("Remove", item.Operation);
+        Assert.Equal("DeleteByName", item.ParameterSetName);
+        Assert.Equal("alpha", item.Name);
+        Assert.True(item.FlagWasBound);
+    }
+
     private static Runspace CreateRunspace()
     {
         var initialSessionState = InitialSessionState.CreateDefault();
         initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-Widget", typeof(GetWidgetCommand), helpFileName: null));
         initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-PipelineWidget", typeof(GetPipelineWidgetCommand), helpFileName: null));
         initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-PropertyPipelineWidget", typeof(GetPropertyPipelineWidgetCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-MultiTargetWidget", typeof(GetMultiTargetWidgetCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("New-WidgetLifecycle", typeof(NewWidgetLifecycleCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("Set-WidgetLifecycle", typeof(SetWidgetLifecycleCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("Remove-WidgetLifecycle", typeof(RemoveWidgetLifecycleCommand), helpFileName: null));
 
         var runspace = RunspaceFactory.CreateRunspace(initialSessionState);
         runspace.Open();
@@ -202,6 +288,133 @@ public sealed class GetPropertyPipelineWidgetCommand : PSCmdlet
 
 [GeneratePowerShellWrapper(typeof(GetPropertyPipelineWidgetCommand))]
 public partial class PropertyPipelineWidgetCommands
+{
+}
+
+[OutputType(typeof(ParameterSetResult))]
+[Cmdlet(VerbsCommon.Get, "MultiTargetWidget", DefaultParameterSetName = "ByName")]
+public sealed class GetMultiTargetWidgetCommand : PSCmdlet
+{
+    [Parameter(Mandatory = true, ParameterSetName = "ByName")]
+    public string? Name { get; set; }
+
+    [Parameter(Mandatory = true, ParameterSetName = "ById")]
+    public int Id { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new ParameterSetResult(
+            ParameterSetName,
+            Name,
+            MyInvocation.BoundParameters.ContainsKey(nameof(Id)) ? Id : null));
+    }
+}
+
+public sealed record ParameterSetResult(string ParameterSetName, string? Name, int? Id);
+
+[GeneratePowerShellWrapper(typeof(GetMultiTargetWidgetCommand))]
+public partial class MultiTargetWidgetCommands
+{
+}
+
+[OutputType(typeof(WidgetLifecycleResult))]
+[Cmdlet(VerbsCommon.New, "WidgetLifecycle", DefaultParameterSetName = "Create")]
+public sealed class NewWidgetLifecycleCommand : PSCmdlet
+{
+    [Parameter(Mandatory = true, ParameterSetName = "Create")]
+    public string? Name { get; set; }
+
+    [Parameter(ParameterSetName = "Create")]
+    public int Count { get; set; }
+
+    [Parameter(ParameterSetName = "Create")]
+    public SwitchParameter PassThru { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new WidgetLifecycleResult(
+            Operation: "New",
+            ParameterSetName,
+            Name,
+            Id: null,
+            Count,
+            FlagWasBound: MyInvocation.BoundParameters.ContainsKey(nameof(PassThru))));
+    }
+}
+
+[OutputType(typeof(WidgetLifecycleResult))]
+[Cmdlet(VerbsCommon.Set, "WidgetLifecycle", DefaultParameterSetName = "UpdateByName")]
+public sealed class SetWidgetLifecycleCommand : PSCmdlet
+{
+    [Parameter(Mandatory = true, ParameterSetName = "UpdateByName")]
+    public string? Name { get; set; }
+
+    [Parameter(Mandatory = true, ParameterSetName = "UpdateById")]
+    public int Id { get; set; }
+
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter]
+    public SwitchParameter Force { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new WidgetLifecycleResult(
+            Operation: "Set",
+            ParameterSetName,
+            Name,
+            MyInvocation.BoundParameters.ContainsKey(nameof(Id)) ? Id : null,
+            Count,
+            FlagWasBound: MyInvocation.BoundParameters.ContainsKey(nameof(Force))));
+    }
+}
+
+[OutputType(typeof(WidgetLifecycleResult))]
+[Cmdlet(VerbsCommon.Remove, "WidgetLifecycle", DefaultParameterSetName = "DeleteByName")]
+public sealed class RemoveWidgetLifecycleCommand : PSCmdlet
+{
+    [Parameter(Mandatory = true, ParameterSetName = "DeleteByName")]
+    public string? Name { get; set; }
+
+    [Parameter(Mandatory = true, ParameterSetName = "DeleteById")]
+    public int Id { get; set; }
+
+    [Parameter]
+    public SwitchParameter Force { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new WidgetLifecycleResult(
+            Operation: "Remove",
+            ParameterSetName,
+            Name,
+            MyInvocation.BoundParameters.ContainsKey(nameof(Id)) ? Id : null,
+            Count: 0,
+            FlagWasBound: MyInvocation.BoundParameters.ContainsKey(nameof(Force))));
+    }
+}
+
+public sealed record WidgetLifecycleResult(
+    string Operation,
+    string ParameterSetName,
+    string? Name,
+    int? Id,
+    int Count,
+    bool FlagWasBound);
+
+[GeneratePowerShellWrapper(typeof(NewWidgetLifecycleCommand))]
+public partial class NewWidgetLifecycleCommands
+{
+}
+
+[GeneratePowerShellWrapper(typeof(SetWidgetLifecycleCommand))]
+public partial class SetWidgetLifecycleCommands
+{
+}
+
+[GeneratePowerShellWrapper(typeof(RemoveWidgetLifecycleCommand))]
+public partial class RemoveWidgetLifecycleCommands
 {
 }
 
