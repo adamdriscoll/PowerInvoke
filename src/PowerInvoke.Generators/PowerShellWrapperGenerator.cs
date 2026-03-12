@@ -10,6 +10,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace PowerInvoke.Generators;
 
+/// <summary>
+/// Generates strongly typed PowerShell wrapper methods for annotated partial classes.
+/// </summary>
 [Generator]
 public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
 {
@@ -68,6 +71,7 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
         "UseTransaction"
     };
 
+    /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var wrapperTargets = context.SyntaxProvider.ForAttributeWithMetadataName(

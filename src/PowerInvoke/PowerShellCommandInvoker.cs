@@ -5,8 +5,14 @@ using System.Management.Automation;
 
 namespace PowerInvoke;
 
+/// <summary>
+/// Executes PowerShell commands using a prepared <see cref="PowerShell"/> instance.
+/// </summary>
 public static class PowerShellCommandInvoker
 {
+    /// <summary>
+    /// Invokes a command and binds the supplied parameters.
+    /// </summary>
     public static Collection<PSObject> Invoke(
         PowerShell powerShell,
         string commandName,
