@@ -4,15 +4,24 @@ PowerInvoke is a .NET-first library for calling PowerShell through strongly type
 
 For now, the project documentation lives in this README.
 
-## Status
+## Install
 
-The package metadata and publish pipeline are set up for NuGet publishing, but the package has not been published yet.
+Package ID:
 
-Preliminary install command:
+```text
+PowerInvoke
+```
+
+Install command:
 
 ```powershell
 dotnet add package PowerInvoke
 ```
+
+Notes:
+
+- The package includes both the runtime library and the source generator.
+- The current package target framework is `net10.0`.
 
 ## What it does
 
@@ -24,7 +33,7 @@ dotnet add package PowerInvoke
 ## Getting started
 
 1. Add the package to your project.
-2. Create or obtain a `System.Management.Automation.PowerShell` instance.
+2. Create or obtain a `System.Management.Automation.PowerShell` instance, provide a `Runspace`, or let the generated wrapper create `PowerShell` on demand.
 3. Mark a partial class with `GeneratePowerShellWrapperAttribute`.
 4. Call the generated wrapper methods like regular C# methods.
 
@@ -154,9 +163,8 @@ dotnet pack src/PowerInvoke/PowerInvoke.csproj -c Release -o artifacts/packages
 
 - CI runs on pushes and pull requests and validates restore, build, test, and package creation.
 - Publishing is a separate manually triggered GitHub Actions workflow.
-- The publish workflow expects a `NUGET_API_KEY` repository secret.
+- The publish workflow pushes to NuGet and expects a `NUGET_API_KEY` repository secret.
 
 ## Notes
 
-- The `PowerInvoke` package includes both the runtime library and the source generator.
 - Generated wrappers are intended to feel like normal .NET methods, not direct PowerShell hosting code.

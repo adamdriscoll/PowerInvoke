@@ -42,4 +42,15 @@ jobs:
           }
 
       - name: Publish to NuGet
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem "artifacts/packages/*.nupkg" -File |
+            Where-Object { $_.Name -notlike "*.symbols.nupkg" }
+
+          if ($packages.Count -eq 0) {
+            throw "No NuGet packages were found in artifacts/packages."
+          }
+
+          foreach ($package in $packages) {
+            dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
