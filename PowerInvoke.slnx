@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PowerInvoke.Generators/PowerInvoke.Generators.csproj" />
+    <Project Path="src/PowerInvoke/PowerInvoke.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PowerInvoke.Tests/PowerInvoke.Tests.csproj" />
+  </Folder>
+</Solution>

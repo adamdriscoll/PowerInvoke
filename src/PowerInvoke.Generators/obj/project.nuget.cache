@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "dgSpecHash": "KRsl3ftNEB0=",
+  "success": true,
+  "projectFilePath": "D:\\git\\pssharp\\src\\PowerInvoke.Generators\\PowerInvoke.Generators.csproj",
+  "expectedPackageFiles": [
+    "D:\\dev\\caches\\nuget\\microsoft.codeanalysis.analyzers\\3.11.0\\microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\microsoft.codeanalysis.common\\5.0.0\\microsoft.codeanalysis.common.5.0.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\microsoft.codeanalysis.csharp\\5.0.0\\microsoft.codeanalysis.csharp.5.0.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\netstandard.library\\2.0.3\\netstandard.library.2.0.3.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.buffers\\4.6.0\\system.buffers.4.6.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.collections.immutable\\9.0.0\\system.collections.immutable.9.0.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.memory\\4.6.0\\system.memory.4.6.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.numerics.vectors\\4.6.0\\system.numerics.vectors.4.6.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.reflection.metadata\\9.0.0\\system.reflection.metadata.9.0.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.runtime.compilerservices.unsafe\\6.1.0\\system.runtime.compilerservices.unsafe.6.1.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.text.encoding.codepages\\8.0.0\\system.text.encoding.codepages.8.0.0.nupkg.sha512",
+    "D:\\dev\\caches\\nuget\\system.threading.tasks.extensions\\4.6.0\\system.threading.tasks.extensions.4.6.0.nupkg.sha512"
+  ],
+  "logs": []
+}

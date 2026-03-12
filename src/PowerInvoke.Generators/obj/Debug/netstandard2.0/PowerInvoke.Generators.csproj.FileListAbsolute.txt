@@ -1,0 +1,10 @@
+D:\git\pssharp\src\PowerInvoke.Generators\bin\Debug\netstandard2.0\PowerInvoke.Generators.deps.json
+D:\git\pssharp\src\PowerInvoke.Generators\bin\Debug\netstandard2.0\PowerInvoke.Generators.dll
+D:\git\pssharp\src\PowerInvoke.Generators\bin\Debug\netstandard2.0\PowerInvoke.Generators.pdb
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.csproj.AssemblyReference.cache
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.GeneratedMSBuildEditorConfig.editorconfig
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.AssemblyInfoInputs.cache
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.AssemblyInfo.cs
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.csproj.CoreCompileInputs.cache
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.dll
+D:\git\pssharp\src\PowerInvoke.Generators\obj\Debug\netstandard2.0\PowerInvoke.Generators.pdb
