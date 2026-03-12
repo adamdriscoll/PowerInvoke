@@ -11,11 +11,8 @@ public class GeneratedWrapperTests
     [Fact]
     public void Generated_wrapper_discovers_command_from_name_during_generation()
     {
-        using var runspace = CreateRunspace();
-        using var powerShell = PowerShell.Create(runspace);
-
-        var command = new DateCommands(powerShell);
         var expected = new DateTime(2024, 01, 02, 03, 04, 05, DateTimeKind.Utc);
+        var command = new DateCommands();
         var result = command.Get(date: expected);
 
         var actual = Assert.IsType<DateTime>(Assert.Single(result));
@@ -26,9 +23,8 @@ public class GeneratedWrapperTests
     public void Generated_wrapper_returns_strongly_typed_output_when_cmdlet_declares_output_type()
     {
         using var runspace = CreateRunspace();
-        using var powerShell = PowerShell.Create(runspace);
 
-        var command = new WidgetCommands(powerShell);
+        var command = new WidgetCommands(runspace: runspace);
         var result = command.Get(name: "demo", count: 3);
 
         var item = Assert.IsType<WidgetResult>(Assert.Single(result));
@@ -49,6 +45,20 @@ public class GeneratedWrapperTests
         var item = Assert.IsType<WidgetResult>(Assert.Single(result));
         Assert.Null(item.Name);
         Assert.False(item.HasCount);
+    }
+
+    [Fact]
+    public void Generated_wrapper_prefers_supplied_powershell_instance()
+    {
+        using var runspace = CreateRunspace();
+        using var powerShell = PowerShell.Create(runspace);
+        using var alternateRunspace = RunspaceFactory.CreateRunspace();
+
+        var command = new WidgetCommands(powerShell: powerShell, runspace: alternateRunspace);
+        var result = command.Get(name: "demo");
+
+        var item = Assert.IsType<WidgetResult>(Assert.Single(result));
+        Assert.Equal("demo", item.Name);
     }
 
     private static Runspace CreateRunspace()

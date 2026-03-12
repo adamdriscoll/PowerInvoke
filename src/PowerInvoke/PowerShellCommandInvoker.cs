@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
+using System.Management.Automation.Runspaces;
 
 namespace PowerInvoke;
 
 /// <summary>
-/// Executes PowerShell commands using a prepared <see cref="PowerShell"/> instance.
+/// Executes PowerShell commands using either a supplied <see cref="PowerShell"/> instance
+/// or one created on demand.
 /// </summary>
 public static class PowerShellCommandInvoker
 {
@@ -14,34 +16,40 @@ public static class PowerShellCommandInvoker
     /// Invokes a command and binds the supplied parameters.
     /// </summary>
     public static Collection<PSObject> Invoke(
-        PowerShell powerShell,
+        PowerShell? powerShell,
         string commandName,
-        IReadOnlyList<PowerShellParameter> parameters)
+        IReadOnlyList<PowerShellParameter> parameters,
+        Runspace? runspace = null)
     {
-        ArgumentNullException.ThrowIfNull(powerShell);
         ArgumentException.ThrowIfNullOrWhiteSpace(commandName);
         ArgumentNullException.ThrowIfNull(parameters);
 
-        powerShell.Commands.Clear();
-        powerShell.AddCommand(commandName);
+        using var ownedPowerShell = powerShell is null
+            ? (runspace is null ? PowerShell.Create() : PowerShell.Create(runspace))
+            : null;
+
+        var effectivePowerShell = powerShell ?? ownedPowerShell!;
+        effectivePowerShell.Commands.Clear();
+        effectivePowerShell.AddCommand(commandName);
 
         foreach (var parameter in parameters)
         {
-            powerShell.AddParameter(parameter.Name, parameter.Value);
+            effectivePowerShell.AddParameter(parameter.Name, parameter.Value);
         }
 
-        return powerShell.Invoke();
+        return effectivePowerShell.Invoke();
     }
 
     /// <summary>
     /// Invokes a command and unwraps the resulting PowerShell values to a strongly typed collection.
     /// </summary>
     public static Collection<T> Invoke<T>(
-        PowerShell powerShell,
+        PowerShell? powerShell,
         string commandName,
-        IReadOnlyList<PowerShellParameter> parameters)
+        IReadOnlyList<PowerShellParameter> parameters,
+        Runspace? runspace = null)
     {
-        var results = Invoke(powerShell, commandName, parameters);
+        var results = Invoke(powerShell, commandName, parameters, runspace);
         var typedResults = new Collection<T>();
 
         foreach (var result in results)
@@ -63,11 +71,12 @@ public static class PowerShellCommandInvoker
     /// Invokes a command and unwraps the resulting PowerShell values to their base objects.
     /// </summary>
     public static Collection<dynamic?> InvokeDynamic(
-        PowerShell powerShell,
+        PowerShell? powerShell,
         string commandName,
-        IReadOnlyList<PowerShellParameter> parameters)
+        IReadOnlyList<PowerShellParameter> parameters,
+        Runspace? runspace = null)
     {
-        var results = Invoke(powerShell, commandName, parameters);
+        var results = Invoke(powerShell, commandName, parameters, runspace);
         var dynamicResults = new Collection<dynamic?>();
 
         foreach (var result in results)

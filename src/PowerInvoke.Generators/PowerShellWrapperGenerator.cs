@@ -707,12 +707,17 @@ foreach ($outputType in $command.OutputType) {{
 
         builder.Append("partial class ").Append(targetType.Name).AppendLine();
         builder.AppendLine("{");
-        builder.Append("    private readonly global::System.Management.Automation.PowerShell _powerShell;").AppendLine();
+        builder.Append("    private readonly global::System.Management.Automation.PowerShell? _powerShell;").AppendLine();
+        builder.Append("    private readonly global::System.Management.Automation.Runspaces.Runspace? _runspace;").AppendLine();
         builder.AppendLine();
         builder.Append("    public ").Append(targetType.Name)
-            .Append("(global::System.Management.Automation.PowerShell powerShell)").AppendLine();
+            .Append("(")
+            .Append("global::System.Management.Automation.PowerShell? powerShell = null, ")
+            .Append("global::System.Management.Automation.Runspaces.Runspace? runspace = null")
+            .AppendLine(")");
         builder.AppendLine("    {");
-        builder.AppendLine("        _powerShell = powerShell ?? throw new global::System.ArgumentNullException(nameof(powerShell));");
+        builder.AppendLine("        _powerShell = powerShell;");
+        builder.AppendLine("        _runspace = runspace;");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.Append("    public global::System.Collections.ObjectModel.Collection<")
@@ -771,13 +776,13 @@ foreach ($outputType in $command.OutputType) {{
                 .Append(returnTypeName)
                 .Append(">(_powerShell, \"")
                 .Append(commandName)
-                .AppendLine("\", parameters);");
+                .AppendLine("\", parameters, _runspace);");
         }
         else
         {
             builder.Append("        return global::PowerInvoke.PowerShellCommandInvoker.InvokeDynamic(_powerShell, \"")
                 .Append(commandName)
-                .AppendLine("\", parameters);");
+                .AppendLine("\", parameters, _runspace);");
         }
         builder.AppendLine("    }");
         builder.AppendLine("}");
