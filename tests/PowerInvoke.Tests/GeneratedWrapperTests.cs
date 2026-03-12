@@ -18,12 +18,12 @@ public class GeneratedWrapperTests
         var expected = new DateTime(2024, 01, 02, 03, 04, 05, DateTimeKind.Utc);
         var result = command.Get(date: expected);
 
-        var actual = Assert.IsType<DateTime>(Assert.Single(result).BaseObject);
+        var actual = Assert.IsType<DateTime>(Assert.Single(result));
         Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void Generated_wrapper_invokes_cmdlet_with_typed_parameters()
+    public void Generated_wrapper_returns_strongly_typed_output_when_cmdlet_declares_output_type()
     {
         using var runspace = CreateRunspace();
         using var powerShell = PowerShell.Create(runspace);
@@ -31,10 +31,10 @@ public class GeneratedWrapperTests
         var command = new WidgetCommands(powerShell);
         var result = command.Get(name: "demo", count: 3);
 
-        var item = Assert.Single(result);
-        Assert.Equal("demo", item.Properties["Name"].Value);
-        Assert.Equal(3, item.Properties["Count"].Value);
-        Assert.Equal("Get-Widget", item.Properties["CommandName"].Value);
+        var item = Assert.IsType<WidgetResult>(Assert.Single(result));
+        Assert.Equal("demo", item.Name);
+        Assert.Equal(3, item.Count);
+        Assert.Equal("Get-Widget", item.CommandName);
     }
 
     [Fact]
@@ -46,9 +46,9 @@ public class GeneratedWrapperTests
         var command = new WidgetCommands(powerShell);
         var result = command.Get();
 
-        var item = Assert.Single(result);
-        Assert.Null(item.Properties["Name"].Value);
-        Assert.False((bool)item.Properties["HasCount"].Value);
+        var item = Assert.IsType<WidgetResult>(Assert.Single(result));
+        Assert.Null(item.Name);
+        Assert.False(item.HasCount);
     }
 
     private static Runspace CreateRunspace()
@@ -62,6 +62,7 @@ public class GeneratedWrapperTests
     }
 }
 
+[OutputType(typeof(WidgetResult))]
 [Cmdlet(VerbsCommon.Get, "Widget")]
 public sealed class GetWidgetCommand : PSCmdlet
 {
@@ -73,14 +74,15 @@ public sealed class GetWidgetCommand : PSCmdlet
 
     protected override void ProcessRecord()
     {
-        var result = new PSObject();
-        result.Properties.Add(new PSNoteProperty("CommandName", MyInvocation.MyCommand.Name));
-        result.Properties.Add(new PSNoteProperty("Name", Name));
-        result.Properties.Add(new PSNoteProperty("Count", Count));
-        result.Properties.Add(new PSNoteProperty("HasCount", MyInvocation.BoundParameters.ContainsKey(nameof(Count))));
-        WriteObject(result);
+        WriteObject(new WidgetResult(
+            MyInvocation.MyCommand.Name,
+            Name,
+            Count,
+            MyInvocation.BoundParameters.ContainsKey(nameof(Count))));
     }
 }
+
+public sealed record WidgetResult(string CommandName, string? Name, int Count, bool HasCount);
 
 [GeneratePowerShellWrapper(typeof(GetWidgetCommand))]
 public partial class WidgetCommands

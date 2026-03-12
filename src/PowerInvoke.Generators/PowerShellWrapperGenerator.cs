@@ -18,6 +18,7 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
 {
     private const string AttributeName = "PowerInvoke.GeneratePowerShellWrapperAttribute";
     private const string CmdletAttributeName = "System.Management.Automation.CmdletAttribute";
+    private const string OutputTypeAttributeName = "System.Management.Automation.OutputTypeAttribute";
     private const string ParameterAttributeName = "System.Management.Automation.ParameterAttribute";
 
     private static readonly DiagnosticDescriptor PartialClassRequired = new(
@@ -124,7 +125,13 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
             return new GenerationResult(null, command.Diagnostic);
         }
 
-        var source = RenderSource(targetType, command.CommandName, command.MethodName, command.Parameters);
+        var source = RenderSource(
+            targetType,
+            command.CommandName,
+            command.MethodName,
+            command.Parameters,
+            command.ReturnTypeName,
+            command.UseTypedInvoke);
         return new GenerationResult(
             new GeneratedWrapper($"{targetType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}.{command.MethodName}", source),
             null);
@@ -170,6 +177,8 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
                 string.Empty,
                 string.Empty,
                 [],
+                string.Empty,
+                false,
                 Diagnostic.Create(CmdletAttributeRequired, context.TargetNode.GetLocation(), cmdletType.Name));
         }
 
@@ -181,7 +190,8 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
             .OrderBy(x => x.Name, StringComparer.Ordinal)
             .ToList();
 
-        return new CommandSpecification(commandName, verb, parameters, null);
+        var returnModel = CreateReturnModel(GetOutputTypes(context.SemanticModel.Compilation, cmdletType));
+        return new CommandSpecification(commandName, verb, parameters, returnModel.TypeName, returnModel.UseTypedInvoke, null);
     }
 
     private static CommandSpecification GetCommandSpecificationFromName(
@@ -197,6 +207,8 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
                     string.Empty,
                     string.Empty,
                     [],
+                    string.Empty,
+                    false,
                     Diagnostic.Create(
                         CommandDiscoveryFailed,
                         context.TargetNode.GetLocation(),
@@ -210,6 +222,8 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
                     string.Empty,
                     string.Empty,
                     [],
+                    string.Empty,
+                    false,
                     Diagnostic.Create(CommandNotFound, context.TargetNode.GetLocation(), commandName));
             }
 
@@ -219,7 +233,14 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
                 .Select(x => CreateParameterModel(context.SemanticModel.Compilation, x.Name, x.ParameterType))
                 .ToList();
 
-            return new CommandSpecification(discoveredCommand.Name, GetMethodName(discoveredCommand.Name), parameters, null);
+            var returnModel = CreateReturnModel(context.SemanticModel.Compilation, discoveredCommand.OutputTypes);
+            return new CommandSpecification(
+                discoveredCommand.Name,
+                GetMethodName(discoveredCommand.Name),
+                parameters,
+                returnModel.TypeName,
+                returnModel.UseTypedInvoke,
+                null);
         }
         catch (Exception exception)
         {
@@ -227,6 +248,8 @@ public sealed class PowerShellWrapperGenerator : IIncrementalGenerator
                 string.Empty,
                 string.Empty,
                 [],
+                string.Empty,
+                false,
                 Diagnostic.Create(CommandDiscoveryFailed, context.TargetNode.GetLocation(), commandName, exception.Message));
         }
     }
@@ -399,6 +422,10 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
     $parameterType = if ($null -ne $parameter.ParameterType) {{ $parameter.ParameterType.AssemblyQualifiedName }} else {{ [object].AssemblyQualifiedName }}
     [Console]::Out.WriteLine(($parameter.Name + '=' + $parameterType))
 }}
+foreach ($outputType in $command.OutputType) {{
+    $resolvedType = if ($null -ne $outputType.Type) {{ $outputType.Type.AssemblyQualifiedName }} else {{ [object].AssemblyQualifiedName }}
+    [Console]::Out.WriteLine(('@output=' + $resolvedType))
+}}
 ";
 
         var startInfo = new ProcessStartInfo
@@ -423,7 +450,7 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
 
         if (process.ExitCode == 3)
         {
-            return new DiscoveredCommand(commandName, []);
+            return new DiscoveredCommand(commandName, [], []);
         }
 
         if (process.ExitCode != 0)
@@ -442,8 +469,17 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
 
         var discoveredName = lines[0];
         var parameters = new List<DiscoveredParameter>();
+        var outputTypes = new List<Type>();
         foreach (var line in lines.Skip(1))
         {
+            if (line.StartsWith("@output=", StringComparison.Ordinal))
+            {
+                var outputTypeName = line.Substring("@output=".Length);
+                var outputType = Type.GetType(outputTypeName, throwOnError: false) ?? typeof(object);
+                outputTypes.Add(outputType);
+                continue;
+            }
+
             var separatorIndex = line.IndexOf('=');
             if (separatorIndex <= 0 || separatorIndex == line.Length - 1)
             {
@@ -456,7 +492,7 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
             parameters.Add(new DiscoveredParameter(name, parameterType));
         }
 
-        return new DiscoveredCommand(discoveredName, parameters);
+        return new DiscoveredCommand(discoveredName, parameters, outputTypes);
     }
 
     private static string? FindPwshPath()
@@ -576,11 +612,87 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
         return $"global::{(type.FullName ?? type.Name).Replace('+', '.')}";
     }
 
+    private static IReadOnlyList<ITypeSymbol> GetOutputTypes(Compilation compilation, INamedTypeSymbol cmdletType)
+    {
+        var outputTypeAttribute = compilation.GetTypeByMetadataName(OutputTypeAttributeName);
+        if (outputTypeAttribute is null)
+        {
+            return [];
+        }
+
+        var outputTypes = new List<ITypeSymbol>();
+        var seenTypes = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var current = cmdletType; current is not null; current = current.BaseType)
+        {
+            foreach (var attribute in current.GetAttributes())
+            {
+                if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, outputTypeAttribute))
+                {
+                    continue;
+                }
+
+                foreach (var constructorArgument in attribute.ConstructorArguments)
+                {
+                    if (constructorArgument.Kind == TypedConstantKind.Array)
+                    {
+                        foreach (var value in constructorArgument.Values)
+                        {
+                            AddOutputType(outputTypes, seenTypes, value.Value as ITypeSymbol);
+                        }
+                    }
+                    else
+                    {
+                        AddOutputType(outputTypes, seenTypes, constructorArgument.Value as ITypeSymbol);
+                    }
+                }
+            }
+        }
+
+        return outputTypes;
+    }
+
+    private static void AddOutputType(List<ITypeSymbol> outputTypes, HashSet<string> seenTypes, ITypeSymbol? typeSymbol)
+    {
+        if (typeSymbol is null)
+        {
+            return;
+        }
+
+        var typeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (seenTypes.Add(typeName))
+        {
+            outputTypes.Add(typeSymbol);
+        }
+    }
+
+    private static ReturnModel CreateReturnModel(IReadOnlyList<ITypeSymbol> outputTypes)
+    {
+        if (outputTypes.Count == 1)
+        {
+            return new ReturnModel(outputTypes[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), true);
+        }
+
+        return ReturnModel.Dynamic;
+    }
+
+    private static ReturnModel CreateReturnModel(Compilation compilation, IReadOnlyList<Type> outputTypes)
+    {
+        if (outputTypes.Count == 1 && CanResolveType(compilation, outputTypes[0]))
+        {
+            return new ReturnModel(RenderRuntimeTypeName(outputTypes[0]), true);
+        }
+
+        return ReturnModel.Dynamic;
+    }
+
     private static string RenderSource(
         INamedTypeSymbol targetType,
         string commandName,
         string methodName,
-        IReadOnlyList<ParameterModel> parameters)
+        IReadOnlyList<ParameterModel> parameters,
+        string returnTypeName,
+        bool useTypedInvoke)
     {
         var builder = new StringBuilder();
         builder.AppendLine("// <auto-generated />");
@@ -603,7 +715,9 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
         builder.AppendLine("        _powerShell = powerShell ?? throw new global::System.ArgumentNullException(nameof(powerShell));");
         builder.AppendLine("    }");
         builder.AppendLine();
-        builder.Append("    public global::System.Collections.ObjectModel.Collection<global::System.Management.Automation.PSObject> ")
+        builder.Append("    public global::System.Collections.ObjectModel.Collection<")
+            .Append(returnTypeName)
+            .Append("> ")
             .Append(methodName)
             .Append("(");
 
@@ -651,9 +765,20 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
             }
         }
 
-        builder.Append("        return global::PowerInvoke.PowerShellCommandInvoker.Invoke(_powerShell, \"")
-            .Append(commandName)
-            .AppendLine("\", parameters);");
+        if (useTypedInvoke)
+        {
+            builder.Append("        return global::PowerInvoke.PowerShellCommandInvoker.Invoke<")
+                .Append(returnTypeName)
+                .Append(">(_powerShell, \"")
+                .Append(commandName)
+                .AppendLine("\", parameters);");
+        }
+        else
+        {
+            builder.Append("        return global::PowerInvoke.PowerShellCommandInvoker.InvokeDynamic(_powerShell, \"")
+                .Append(commandName)
+                .AppendLine("\", parameters);");
+        }
         builder.AppendLine("    }");
         builder.AppendLine("}");
 
@@ -698,11 +823,15 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
             string commandName,
             string methodName,
             IReadOnlyList<ParameterModel> parameters,
+            string returnTypeName,
+            bool useTypedInvoke,
             Diagnostic? diagnostic)
         {
             CommandName = commandName;
             MethodName = methodName;
             Parameters = parameters;
+            ReturnTypeName = returnTypeName;
+            UseTypedInvoke = useTypedInvoke;
             Diagnostic = diagnostic;
         }
 
@@ -712,20 +841,27 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
 
         public IReadOnlyList<ParameterModel> Parameters { get; }
 
+        public string ReturnTypeName { get; }
+
+        public bool UseTypedInvoke { get; }
+
         public Diagnostic? Diagnostic { get; }
     }
 
     private sealed class DiscoveredCommand
     {
-        public DiscoveredCommand(string name, IReadOnlyList<DiscoveredParameter> parameters)
+        public DiscoveredCommand(string name, IReadOnlyList<DiscoveredParameter> parameters, IReadOnlyList<Type> outputTypes)
         {
             Name = name;
             Parameters = parameters;
+            OutputTypes = outputTypes;
         }
 
         public string Name { get; }
 
         public IReadOnlyList<DiscoveredParameter> Parameters { get; }
+
+        public IReadOnlyList<Type> OutputTypes { get; }
     }
 
     private sealed class DiscoveredParameter
@@ -754,5 +890,20 @@ foreach ($parameter in $command.Parameters.Values | Sort-Object Name) {{
         public GeneratedWrapper? Specification { get; }
 
         public Diagnostic? Diagnostic { get; }
+    }
+
+    private sealed class ReturnModel
+    {
+        public static ReturnModel Dynamic { get; } = new ReturnModel("dynamic?", false);
+
+        public ReturnModel(string typeName, bool useTypedInvoke)
+        {
+            TypeName = typeName;
+            UseTypedInvoke = useTypedInvoke;
+        }
+
+        public string TypeName { get; }
+
+        public bool UseTypedInvoke { get; }
     }
 }
