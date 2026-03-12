@@ -19,6 +19,7 @@ dotnet add package PowerInvoke
 - Keeps the public API centered on regular C# types.
 - Uses a source generator to create typed wrapper methods.
 - Lets you stay in .NET concepts until you intentionally cross into PowerShell hosting.
+- Supports PowerShell pipeline input through generated `IEnumerable<T>` overloads when a cmdlet accepts pipeline-bound parameters.
 
 ## Getting started
 
@@ -60,6 +61,74 @@ public partial class WidgetCommands
 {
 }
 ```
+
+## Pipeline input
+
+If a cmdlet parameter is marked with `ValueFromPipeline = true` or `ValueFromPipelineByPropertyName = true`, PowerInvoke generates an overload that accepts `IEnumerable<TInput>` so you can pass pipeline input as a normal .NET sequence.
+
+Pipeline-by-value example:
+
+```csharp
+using System.Management.Automation;
+using PowerInvoke;
+
+[Cmdlet(VerbsCommon.Get, "PipelineWidget")]
+public sealed class GetPipelineWidgetCommand : PSCmdlet
+{
+    [Parameter(ValueFromPipeline = true)]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public int Count { get; set; }
+}
+
+[GeneratePowerShellWrapper(typeof(GetPipelineWidgetCommand))]
+public partial class PipelineWidgetCommands
+{
+}
+
+var commands = new PipelineWidgetCommands(powerShell);
+var results = commands.Get(new[] { "alpha", "beta" }, count: 2);
+```
+
+Pipeline-by-property-name example:
+
+```csharp
+using System.Management.Automation;
+using PowerInvoke;
+
+public sealed record WidgetInput(string Name);
+
+[Cmdlet(VerbsCommon.Get, "PropertyPipelineWidget")]
+public sealed class GetPropertyPipelineWidgetCommand : PSCmdlet
+{
+    [Parameter(ValueFromPipelineByPropertyName = true)]
+    public string? Name { get; set; }
+}
+
+[GeneratePowerShellWrapper(typeof(GetPropertyPipelineWidgetCommand))]
+public partial class PropertyPipelineWidgetCommands
+{
+}
+
+var commands = new PropertyPipelineWidgetCommands(powerShell);
+var results = commands.Get(new[]
+{
+    new WidgetInput("alpha"),
+    new WidgetInput("beta")
+});
+```
+
+Generated wrappers also expose pipeline metadata through `PipelineParameters`, which can be useful for diagnostics, tooling, or documentation:
+
+```csharp
+foreach (var parameter in PipelineWidgetCommands.PipelineParameters)
+{
+    Console.WriteLine($"{parameter.Name}: value={parameter.AcceptsValue}, propertyName={parameter.AcceptsPropertyName}");
+}
+```
+
+If a command does not accept pipeline input, no pipeline overload is generated and `PipelineParameters` is empty.
 
 ## Local development
 
