@@ -61,10 +61,67 @@ public class GeneratedWrapperTests
         Assert.Equal("demo", item.Name);
     }
 
+    [Fact]
+    public void Generated_wrapper_accepts_pipeline_input_by_value()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new PipelineWidgetCommands(runspace: runspace);
+        var result = command.Get(new[] { "first", "second" }, count: 7);
+
+        var items = result.Cast<WidgetResult>().ToArray();
+        Assert.Collection(
+            items,
+            first =>
+            {
+                Assert.Equal("first", first.Name);
+                Assert.Equal(7, first.Count);
+                Assert.True(first.HasCount);
+            },
+            second =>
+            {
+                Assert.Equal("second", second.Name);
+                Assert.Equal(7, second.Count);
+                Assert.True(second.HasCount);
+            });
+    }
+
+    [Fact]
+    public void Generated_wrapper_accepts_pipeline_input_by_property_name()
+    {
+        using var runspace = CreateRunspace();
+
+        var command = new PropertyPipelineWidgetCommands(runspace: runspace);
+        var result = command.Get(new[]
+        {
+            new NamedWidgetInput("alpha"),
+            new NamedWidgetInput("beta")
+        });
+
+        var items = result.Cast<WidgetResult>().ToArray();
+        Assert.Collection(
+            items,
+            first => Assert.Equal("alpha", first.Name),
+            second => Assert.Equal("beta", second.Name));
+    }
+
+    [Fact]
+    public void Generated_wrapper_exposes_pipeline_parameter_metadata()
+    {
+        var metadata = PipelineWidgetCommands.PipelineParameters;
+
+        var pipelineParameter = Assert.Single(metadata);
+        Assert.Equal("Name", pipelineParameter.Name);
+        Assert.True(pipelineParameter.AcceptsValue);
+        Assert.False(pipelineParameter.AcceptsPropertyName);
+    }
+
     private static Runspace CreateRunspace()
     {
         var initialSessionState = InitialSessionState.CreateDefault();
         initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-Widget", typeof(GetWidgetCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-PipelineWidget", typeof(GetPipelineWidgetCommand), helpFileName: null));
+        initialSessionState.Commands.Add(new SessionStateCmdletEntry("Get-PropertyPipelineWidget", typeof(GetPropertyPipelineWidgetCommand), helpFileName: null));
 
         var runspace = RunspaceFactory.CreateRunspace(initialSessionState);
         runspace.Open();
@@ -94,8 +151,57 @@ public sealed class GetWidgetCommand : PSCmdlet
 
 public sealed record WidgetResult(string CommandName, string? Name, int Count, bool HasCount);
 
+public sealed record NamedWidgetInput(string Name);
+
 [GeneratePowerShellWrapper(typeof(GetWidgetCommand))]
 public partial class WidgetCommands
+{
+}
+
+[OutputType(typeof(WidgetResult))]
+[Cmdlet(VerbsCommon.Get, "PipelineWidget")]
+public sealed class GetPipelineWidgetCommand : PSCmdlet
+{
+    [Parameter(ValueFromPipeline = true)]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public int Count { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new WidgetResult(
+            MyInvocation.MyCommand.Name,
+            Name,
+            Count,
+            MyInvocation.BoundParameters.ContainsKey(nameof(Count))));
+    }
+}
+
+[GeneratePowerShellWrapper(typeof(GetPipelineWidgetCommand))]
+public partial class PipelineWidgetCommands
+{
+}
+
+[OutputType(typeof(WidgetResult))]
+[Cmdlet(VerbsCommon.Get, "PropertyPipelineWidget")]
+public sealed class GetPropertyPipelineWidgetCommand : PSCmdlet
+{
+    [Parameter(ValueFromPipelineByPropertyName = true)]
+    public string? Name { get; set; }
+
+    protected override void ProcessRecord()
+    {
+        WriteObject(new WidgetResult(
+            MyInvocation.MyCommand.Name,
+            Name,
+            Count: 0,
+            HasCount: false));
+    }
+}
+
+[GeneratePowerShellWrapper(typeof(GetPropertyPipelineWidgetCommand))]
+public partial class PropertyPipelineWidgetCommands
 {
 }
 
